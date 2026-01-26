@@ -1,84 +1,112 @@
+# test_burger.py
+
 import pytest
 from unittest.mock import Mock
-from praktikum.burger import Burger
-from praktikum.ingredient_types import INGREDIENT_TYPE_SAUCE
+from burger import Burger, Bun, Ingredient
+import test_data as td # Импортируем наши тестовые данные
+
+@pytest.fixture
+def burger():
+    """Фикстура для создания экземпляра Burger."""
+    return Burger()
+
+@pytest.fixture
+def mock_bun():
+    """
+    Фикстура для создания и настройки мока булки.
+    Вся настройка происходит здесь, как и советовал ревьюер.
+    """
+    bun = Mock(spec=Bun)
+    bun.get_name.return_value = td.BUN_NAME
+    bun.get_price.return_value = td.BUN_PRICE
+    return bun
+
+@pytest.fixture
+def mock_ingredients():
+    """
+    Фикстура для создания и настройки моков ингредиентов.
+    """
+    ingredient1 = Mock(spec=Ingredient)
+    ingredient1.get_type.return_value = td.INGREDIENT_SAUCE_TYPE
+    ingredient1.get_name.return_value = td.INGREDIENT_SAUCE_NAME
+    ingredient1.get_price.return_value = td.INGREDIENT_SAUCE_PRICE
+
+    ingredient2 = Mock(spec=Ingredient)
+    ingredient2.get_type.return_value = td.INGREDIENT_FILLING_TYPE
+    ingredient2.get_name.return_value = td.INGREDIENT_FILLING_NAME
+    ingredient2.get_price.return_value = td.INGREDIENT_FILLING_PRICE
+    return [ingredient1, ingredient2]
 
 class TestBurger:
 
-    def test_set_buns(self):
-        burger = Burger()
-        mock_bun = Mock()
+    def test_set_buns_success(self, burger, mock_bun):
         burger.set_buns(mock_bun)
         assert burger.bun == mock_bun
 
-    def test_add_ingredient(self):
-        burger = Burger()
-        mock_ingredient = Mock()
-        burger.add_ingredient(mock_ingredient)
-        assert mock_ingredient in burger.ingredients
-        assert len(burger.ingredients) == 1
+    def test_add_ingredient_success(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        burger.add_ingredient(mock_ingredients[1])
+        assert len(burger.ingredients) == 2
+        assert burger.ingredients[0] == mock_ingredients[0]
+        assert burger.ingredients[1] == mock_ingredients[1]
 
-    def test_remove_ingredient(self):
-        burger = Burger()
-        mock_ingredient = Mock()
-        burger.add_ingredient(mock_ingredient)
+    def test_remove_ingredient_success(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        burger.add_ingredient(mock_ingredients[1])
         burger.remove_ingredient(0)
-        assert len(burger.ingredients) == 0
+        assert len(burger.ingredients) == 1
+        assert burger.ingredients[0] == mock_ingredients[1]
 
-    def test_move_ingredient(self):
-        burger = Burger()
-        mock_1 = Mock()
-        mock_2 = Mock()
-        burger.add_ingredient(mock_1)
-        burger.add_ingredient(mock_2)
-        # Перемещаем первый ингредиент в конец
+    def test_remove_ingredient_non_existent(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        initial_ingredients = burger.ingredients[:]
+        burger.remove_ingredient(5)
+        assert burger.ingredients == initial_ingredients
+
+    def test_move_ingredient_success(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        burger.add_ingredient(mock_ingredients[1])
         burger.move_ingredient(0, 1)
-        assert burger.ingredients[1] == mock_1
-        assert burger.ingredients[0] == mock_2
+        assert burger.ingredients == [mock_ingredients[1], mock_ingredients[0]]
 
-    @pytest.mark.parametrize("bun_price, ing_price, expected_total", [
-        (100, 50, 250),   # (100 * 2) + 50 = 250
-        (200, 100, 500),  # (200 * 2) + 100 = 500
-        (0, 0, 0)         # Проверка на нулевые значения
-    ])
-    def test_get_price(self, bun_price, ing_price, expected_total):
-        burger = Burger()
-        # Создаем мок булки с ценой
-        mock_bun = Mock()
-        mock_bun.get_price.return_value = bun_price
+    def test_get_price_success(self, burger, mock_bun, mock_ingredients):
         burger.set_buns(mock_bun)
+        burger.add_ingredient(mock_ingredients[0])
+        burger.add_ingredient(mock_ingredients[1])
         
-        # Создаем мок ингредиента с ценой
-        mock_ingredient = Mock()
-        mock_ingredient.get_price.return_value = ing_price
-        burger.add_ingredient(mock_ingredient)
+        assert burger.get_price() == td.EXPECTED_PRICE
         
-        assert burger.get_price() == expected_total
+        mock_bun.get_price.assert_called_once_with()
+        mock_ingredients[0].get_price.assert_called_once_with()
+        mock_ingredients[1].get_price.assert_called_once_with()
 
-    def test_get_receipt(self):
-        burger = Burger()
-        # Настраиваем мок булки
-        mock_bun = Mock()
-        mock_bun.get_name.return_value = "black bun"
-        mock_bun.get_price.return_value = 100
+    def test_get_price_no_bun_negative(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        assert burger.get_price() == 0.0
+
+    def test_get_receipt_success(self, burger, mock_bun, mock_ingredients):
+        """
+        Позитивная проверка: формирование чека.
+        Теперь с точной проверкой полного соответствия.
+        """
         burger.set_buns(mock_bun)
+        burger.add_ingredient(mock_ingredients[0])
+        burger.add_ingredient(mock_ingredients[1])
 
-        # Настраиваем мок ингредиента
-        mock_ingredient = Mock()
-        mock_ingredient.get_type.return_value = INGREDIENT_TYPE_SAUCE
-        mock_ingredient.get_name.return_value = "hot sauce"
-        mock_ingredient.get_price.return_value = 100
-        burger.add_ingredient(mock_ingredient)
+        # Создаем эталонную строку чека для сравнения
+        expected_receipt = (
+            f"(==== {td.BUN_NAME} ====)\n"
+            f"= {td.INGREDIENT_SAUCE_TYPE.lower()} {td.INGREDIENT_SAUCE_NAME} =\n"
+            f"= {td.INGREDIENT_FILLING_TYPE.lower()} {td.INGREDIENT_FILLING_NAME} =\n"
+            f"(==== {td.BUN_NAME} ====)\n"
+            f"\nPrice: {td.EXPECTED_PRICE}"
+        )
 
-        receipt = burger.get_receipt()
-        
-        # Проверяем, что в чеке есть все нужные части
-        assert "black bun" in receipt
-        assert "sauce hot sauce" in receipt  # метод делает .lower()
-        assert "Price: 300" in receipt       # (100*2) + 100
+        actual_receipt = burger.get_receipt()
 
-    def test_remove_ingredient_out_of_range_raises_error(self):
-        # Негативный тест: удаление по несуществующему индексу
-        burger = Burger()
-        with pytest.raises(IndexError):
-            burger.remove_ingredient(0)
+        # Сравниваем фактический результат с эталоном
+        assert actual_receipt == expected_receipt
+
+    def test_get_receipt_no_bun_negative(self, burger, mock_ingredients):
+        burger.add_ingredient(mock_ingredients[0])
+        assert burger.get_receipt() == ""
