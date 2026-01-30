@@ -15,5 +15,4 @@ INGREDIENT_FILLING_NAME = "Котлета BIO-марсианская"
 INGREDIENT_FILLING_PRICE = 3000.0
 
 # Ожидаемая итоговая цена для тестов
-# (1255.0 * 2) + 90.0 + 3000.0 = 5600.0
 EXPECTED_PRICE = 5600.0
